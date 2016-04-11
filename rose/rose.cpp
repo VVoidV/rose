@@ -7,7 +7,10 @@
 #include <string>
 #include <vector>
 #include <GL\glut.h>
-#define DEBUG
+#include "glcamera.h"
+#include <windows.h>
+
+//#define DEBUG
 using namespace std;
 //用于保存模型信息的数据结构
 vector<string> texture;
@@ -29,6 +32,11 @@ GLint t_count;
 GLint n_count;
 GLint submodel_count;
 
+//////////////////////////////////////////////////////////////////////////
+//camera
+GLCamera *camera;
+//////////////////////////////////////////////////////////////////////////
+
 class submodel
 {
 public:
@@ -39,6 +47,9 @@ public:
 	vector<vector<unsigned int> > t;
 };
 vector<submodel> smodel;
+
+//用于漫游
+
 
 void inportModel(const string filename)
 {
@@ -227,7 +238,80 @@ void inportModel(const string filename)
 #endif // DEBUG	
 }
 
+//////////////////////////////////////////////////////////////////////////
+//造一个使用opengl的框架
+//参考nehe的教程，应该包括init函数，处理resize的函数，draw模型的函数
+//////////////////////////////////////////////////////////////////////////
+GLvoid ReSizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize The GL Window
+{
+	if (height == 0)										// Prevent A Divide By Zero By
+	{
+		height = 1;										// Making Height Equal One
+	}
 
+	glViewport(0, 0, width, height);						// Reset The Current Viewport
+
+	glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+	glLoadIdentity();									// Reset The Projection Matrix
+	camera->setShape(45.0, (GLfloat)width / (GLfloat)height, 0.1, 100.0);
+														// Calculate The Aspect Ratio Of The Window
+	//gluPerspective(45.0f, (GLfloat)width / (GLfloat)height, 0.1f, 100.0f);
+
+	glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+	glLoadIdentity();									// Reset The Modelview Matrix
+}
+
+int InitGL(GLvoid)										// All Setup For OpenGL Goes Here
+{
+	glShadeModel(GL_SMOOTH);							// Enable Smooth Shading
+	glClearColor(0.0f, 0.0f, 0.0f, 0.5f);				// Black Background
+	glClearDepth(1.0f);									// Depth Buffer Setup
+	glEnable(GL_DEPTH_TEST);							// Enables Depth Testing
+	glDepthFunc(GL_LEQUAL);								// The Type Of Depth Testing To Do
+	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
+	
+	Vector3d pos(0.0, 0.0, 12.0);
+	Vector3d target(0.0, 0.0, 0.0);
+	Vector3d up(0.0, 1.0, 0.0);
+	camera = new GLCamera(pos, target, up);
+
+	
+	return TRUE;										// Initialization Went OK
+}
+
+void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
+{
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	// Clear Screen And Depth Buffer
+	glLoadIdentity();									// Reset The Current Modelview Matrix
+	
+	camera->setModelViewMatrix();//
+	//绘制模型
+	glColor3f(0.0, 1.0, 0.0);
+	glutWireTeapot(1);
+	glBegin(GL_TRIANGLES);
+	glColor3f(1.0, 0.0, 0.0);
+	for (int i = 0; i < submodel_count; i++)
+	{
+		for (int j = 0; j < smodel[i].triangle_count; j++)
+		{
+			for (int k = 0; k < 3; k++)
+			{
+				glVertex3f(vertex[smodel[i].v[j][k] - 1][0], vertex[smodel[i].v[j][k] - 1][1], vertex[smodel[i].v[k][k] - 1][2]);//V[j][k]表示第j个三角形的第k个顶点
+			}
+
+		}
+
+	}
+
+	glEnd();
+
+	return ;										// Everything Went OK
+}
+
+
+//////////////////////////////////////////////////////////////////////////
+//以上是从nehe的教程中学习过来的
+//////////////////////////////////////////////////////////////////////////
 void drawmodel(void)
 {
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -254,7 +338,7 @@ void display(void)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glLoadIdentity();
 	glOrtho(-1,1, -1, 1, -1, 1);
-	gluLookAt(1, 1, 1, 0, 0, 0, 0, 1, 0);
+	gluLookAt(1, 0, 1, 0, 0, 0, 0, 1, 0);
 	glColor3f(1.0, 0.0, 0.0);
 	drawmodel();
 	glFlush();
@@ -268,11 +352,15 @@ int main(int argc,char** argv)
 	inportModel(filename);
 
 	glutInit(&argc, argv);
+
+	InitGL();
+
 	glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB | GLUT_DEPTH);
 	glutInitWindowPosition(50, 50);
 	glutInitWindowSize(800, 600);
 	glutCreateWindow("test!");
-	glutDisplayFunc(display);
+	glutDisplayFunc(drawmodel);
+	//glutReshapeFunc(ReSizeGLScene);
 	glEnable(GL_DEPTH_TEST);
 	glutMainLoop();
 

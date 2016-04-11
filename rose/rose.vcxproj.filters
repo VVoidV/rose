@@ -24,12 +24,21 @@
     <ClInclude Include="targetver.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="eigen.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="glcamera.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="rose.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="glcamera.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
