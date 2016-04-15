@@ -270,7 +270,7 @@ int InitGL(GLvoid)										// All Setup For OpenGL Goes Here
 	glDepthFunc(GL_LEQUAL);								// The Type Of Depth Testing To Do
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
 	
-	Vector3d pos(0.0, 0.0, 12.0);
+	Vector3d pos(0.0, 0.0, 1.0);
 	Vector3d target(0.0, 0.0, 0.0);
 	Vector3d up(0.0, 1.0, 0.0);
 	camera = new GLCamera(pos, target, up);
@@ -296,7 +296,7 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 		{
 			for (int k = 0; k < 3; k++)
 			{
-				glVertex3f(vertex[smodel[i].v[j][k] - 1][0], vertex[smodel[i].v[j][k] - 1][1], vertex[smodel[i].v[k][k] - 1][2]);//V[j][k]表示第j个三角形的第k个顶点
+				glVertex3f(vertex[smodel[i].v[j][k] - 1][0], vertex[smodel[i].v[j][k] - 1][1], vertex[smodel[i].v[j][k] - 1][2]);//V[j][k]表示第j个三角形的第k个顶点
 			}
 
 		}
@@ -304,7 +304,7 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 	}
 
 	glEnd();
-
+	glFlush();
 	return ;										// Everything Went OK
 }
 
@@ -312,37 +312,81 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 //////////////////////////////////////////////////////////////////////////
 //以上是从nehe的教程中学习过来的
 //////////////////////////////////////////////////////////////////////////
-void drawmodel(void)
+void RotateX(float angle)
 {
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	glBegin(GL_TRIANGLES);
-	
-	for (int i = 0; i < submodel_count; i++)
+	float d = camera->getDist();
+	int cnt = 100;
+	float theta = angle / cnt;
+	float slide_d = -2 * d*sin(theta*3.14159265 / 360);
+	camera->yaw(theta / 2);
+	for (; cnt != 0; --cnt)
 	{
-		for (int j = 0; j < smodel[i].triangle_count; j++)
-		{
-			for (int k = 0; k < 3; k++)
-			{
-				glVertex3f(vertex[smodel[i].v[j][k]-1][0], vertex[smodel[i].v[j][k]-1][1], vertex[smodel[i].v[k][k]-1][2]);//V[j][k]表示第j个三角形的第k个顶点
-			}
-			
-		}
-		
+		camera->slide(slide_d, 0, 0);
+		camera->yaw(theta);
 	}
-	
-	glEnd();
+	camera->yaw(-theta / 2);
 }
 
-void display(void)
+void RotateY(float angle)
 {
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glLoadIdentity();
-	glOrtho(-1,1, -1, 1, -1, 1);
-	gluLookAt(1, 0, 1, 0, 0, 0, 0, 1, 0);
-	glColor3f(1.0, 0.0, 0.0);
-	drawmodel();
-	glFlush();
+	float d = camera->getDist();
+	int cnt = 100;
+	float theta = angle / cnt;
+	float slide_d = 2 * d*sin(theta*3.14159265 / 360);
+	camera->pitch(theta / 2);
+	for (; cnt != 0; --cnt)
+	{
+		camera->slide(0, slide_d, 0);
+		camera->pitch(theta);
+	}
+	camera->pitch(-theta / 2);
 }
+
+
+GLint oldmx, oldmy;
+GLint buttonstate;
+void mouse(GLint button, GLint state, GLint x, GLint y)
+{
+	if (state==GLUT_DOWN)
+	{
+		oldmx = x;
+		oldmy = y;
+	}
+	buttonstate = button;
+}
+
+void onMouseMove(GLint x, GLint y)
+{
+
+	GLint dx = x - oldmx;
+	GLint dy = y-oldmy;
+	if (buttonstate == GLUT_RIGHT_BUTTON)
+	{
+		RotateX((GLfloat)dx/10);
+		RotateY((GLfloat)dy/10);
+	}
+	else if (buttonstate==GLUT_LEFT_BUTTON)
+	{
+		camera->roll((GLfloat)dx/10);
+
+	}
+	else if (buttonstate == GLUT_MIDDLE_BUTTON)
+	{
+		camera->slide(-(GLfloat)dx/300, (GLfloat)dy/300, 0);
+	}
+
+	else if (buttonstate == 4)
+	{
+		cout << "!!" << endl;
+	}
+	oldmx = x;
+	oldmy = y;
+
+
+	glutPostRedisplay();
+
+}
+
 
 int main(int argc,char** argv)
 {
@@ -359,9 +403,11 @@ int main(int argc,char** argv)
 	glutInitWindowPosition(50, 50);
 	glutInitWindowSize(800, 600);
 	glutCreateWindow("test!");
-	glutDisplayFunc(drawmodel);
-	//glutReshapeFunc(ReSizeGLScene);
-	glEnable(GL_DEPTH_TEST);
+	glutDisplayFunc(DrawGLScene);
+	glutReshapeFunc(ReSizeGLScene);
+	
+	glutMouseFunc(mouse);
+	glutMotionFunc(onMouseMove);
 	glutMainLoop();
 
 	system("pause");
