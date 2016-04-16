@@ -146,12 +146,14 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="bmp.h" />
     <ClInclude Include="eigen.h" />
     <ClInclude Include="glcamera.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="bmp.cpp" />
     <ClCompile Include="glcamera.cpp" />
     <ClCompile Include="rose.cpp" />
     <ClCompile Include="stdafx.cpp">

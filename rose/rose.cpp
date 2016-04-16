@@ -9,11 +9,11 @@
 #include <GL\glut.h>
 #include "glcamera.h"
 #include <windows.h>
-
+#include "bmp.h"
 //#define DEBUG
 using namespace std;
 //用于保存模型信息的数据结构
-vector<string> texture;
+char** texture;
 vector<vector<GLfloat> > ambient;
 vector<vector<GLfloat> > diffuse;
 vector<vector<GLfloat> > specular;
@@ -31,6 +31,24 @@ GLint vertex_count;
 GLint t_count;
 GLint n_count;
 GLint submodel_count;
+
+////////纹理参数
+static GLint imagewidth;
+static GLint imageheight;
+static GLint pixellength;
+static GLubyte* pixeldata;
+
+
+struct AUX_RGBImageRec {
+	GLuint sizeX;
+	GLuint sizeY;
+	GLushort biBitCount;
+	GLubyte* data;
+};
+
+AUX_RGBImageRec **TextureImage;
+GLuint* textureid;           // 存储多个纹理
+/////////////
 
 //////////////////////////////////////////////////////////////////////////
 //camera
@@ -51,6 +69,92 @@ vector<submodel> smodel;
 //用于漫游
 
 
+AUX_RGBImageRec *loader(const char* filename)
+{
+	FILE *bmp;
+	AUX_RGBImageRec *p = (AUX_RGBImageRec*)malloc(sizeof(AUX_RGBImageRec));
+	GLint pixellength;
+
+	if (!filename)            // 确保文件名已提供
+	{
+		return NULL;          // 如果没提供，返回 NULL
+	}
+
+	if (0 != fopen_s(&bmp, filename, "rb"))
+	{
+		cerr << "open failed" << endl;
+		return NULL;
+	}
+
+	fseek(bmp, 18, SEEK_SET);
+	fread(&p->sizeX, sizeof(p->sizeX), 1, bmp);
+	fread(&p->sizeY, sizeof(p->sizeY), 1, bmp);
+	fseek(bmp, 2, SEEK_CUR);
+	fread(&p->biBitCount, sizeof(p->biBitCount), 1, bmp);
+	if (((int)(p->sizeY)) < 0)
+	{
+		p->sizeY = ~p->sizeY + 1;
+	}
+	if (0x0020 == p->biBitCount)
+	{
+		pixellength = p->sizeX * 4;
+	}
+	else
+	{
+		pixellength = p->sizeX * 3;
+	}
+
+	while (pixellength % 4 != 0)
+	{
+		pixellength++;
+	}
+
+	pixellength *= p->sizeY;
+	p->data = (GLubyte*)malloc(pixellength);
+
+	if (NULL == p->data)
+	{
+		cerr << "malloc failed" << endl;
+		system("pause");
+		exit(-1);
+	}
+	fseek(bmp, 54, SEEK_SET);
+	fread(p->data, pixellength, 1, bmp);
+	fclose(bmp);
+	return p;
+
+}
+
+
+int LoadGLTextures(char** fileNameList, int texturefileNameCount)
+{
+	int Status = false;                         // 状态指示器
+	TextureImage = new AUX_RGBImageRec *[texturefileNameCount];         // 创建纹理的存储空间
+	memset(TextureImage, 0, sizeof(void *)*texturefileNameCount);       // 将指针设为 NULL
+																		// 载入位图，检查有无错误，如果位图没找到则退出
+
+	for (int i = 0; i<texturefileNameCount; i++)
+	{
+		if (TextureImage[i] = loader(fileNameList[i]))
+		{
+			Status = true;                          // 将 Status 设为 TRUE
+			glGenTextures(1, &textureid[i]);        // 每次创建一个纹理，当然也是可以一次创建texturefileNameCount个，保存到&texture里
+		}
+		
+		
+		/*	if (TextureImage[i])                      // 纹理是否存在
+		{
+		if (TextureImage[i]->data)            // 纹理图像是否存在
+		{
+		free(TextureImage[i]->data);      // 释放纹理图像占用的内存
+		}
+		free(TextureImage[i]);                // 释放图像结构
+		}*/
+	}
+
+	return Status;                                // 返回 Status
+}
+
 void inportModel(const string filename)
 {
 	
@@ -64,11 +168,15 @@ void inportModel(const string filename)
 	}
 	//读取纹理文件
 	model >> texture_count;
+	texture = (char**)malloc(sizeof(char*)*texture_count);
+	textureid = (GLuint*)malloc(sizeof(GLuint)*texture_count);
 	for (int i = 0; i < texture_count;i++)
 	{//读取纹理文件文件名到texture中
 		string temp;
 		model >> temp;
-		texture.push_back(temp);
+		texture[i] = (char*)malloc(sizeof(char)*temp.length()+1);
+		cout << temp.length() << endl << temp.c_str() << endl;
+		strcpy_s(texture[i],temp.length()+1,temp.c_str());
 		//cout << texture[i];
 	}
 	
@@ -238,6 +346,16 @@ void inportModel(const string filename)
 #endif // DEBUG	
 }
 
+//vector<GLint> textureid;
+/*void loadBMP()
+{
+	textureid.resize(texture_count);
+	for (int i = 0; i < texture_count;i++)
+	{
+		textureid[i]=ATLLoadTexture(texture[i].c_str());
+	}
+}*/
+void DrawGLScene(GLvoid);
 //////////////////////////////////////////////////////////////////////////
 //造一个使用opengl的框架
 //参考nehe的教程，应该包括init函数，处理resize的函数，draw模型的函数
@@ -269,12 +387,13 @@ int InitGL(GLvoid)										// All Setup For OpenGL Goes Here
 	glEnable(GL_DEPTH_TEST);							// Enables Depth Testing
 	glDepthFunc(GL_LEQUAL);								// The Type Of Depth Testing To Do
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
-	
-	Vector3d pos(0.0, 0.0, 1.0);
+	glEnable(GL_TEXTURE_2D);
+	Vector3d pos(0.0, 0.0, 3.0);
 	Vector3d target(0.0, 0.0, 0.0);
 	Vector3d up(0.0, 1.0, 0.0);
 	camera = new GLCamera(pos, target, up);
-
+	LoadGLTextures(texture, texture_count);// 载入所有的纹理贴图  2013年12月12日13:47:22
+	DrawGLScene();
 	
 	return TRUE;										// Initialization Went OK
 }
@@ -284,27 +403,76 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	// Clear Screen And Depth Buffer
 	glLoadIdentity();									// Reset The Current Modelview Matrix
 	
-	camera->setModelViewMatrix();//
+	camera->setModelViewMatrix();
 	//绘制模型
 	glColor3f(0.0, 1.0, 0.0);
-	glutWireTeapot(1);
-	glBegin(GL_TRIANGLES);
-	glColor3f(1.0, 0.0, 0.0);
+	//glutWireTeapot(1);
+	
+	//glColor3f(0.0, 0.0, 0.0);
 	for (int i = 0; i < submodel_count; i++)
 	{
-		for (int j = 0; j < smodel[i].triangle_count; j++)
+
+		// 1.打开材质
+		if (1)
 		{
-			for (int k = 0; k < 3; k++)
+			glMaterialfv(GL_FRONT, GL_AMBIENT, &ambient[i][0]);
+			glMaterialfv(GL_FRONT, GL_DIFFUSE, &diffuse[i][0]);
+			glMaterialfv(GL_FRONT, GL_SPECULAR, &specular[i][0]);
+			glMaterialfv(GL_FRONT, GL_EMISSION, &emission[i][0]);
+			glMaterialf(GL_FRONT, GL_SHININESS, shininess[i]);
+		}
+
+
+		// 2.打开纹理
+		if (1)
+		{
+			
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); // 线形滤波
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); // 线形滤波
+			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);     // 2013年12月13日10:52:55
+
+			int index = texture_index[i] - 1;
+			glBindTexture(GL_TEXTURE_2D, textureid[index]);
+
+			if (0x0020 == TextureImage[index]->biBitCount)
 			{
-				glVertex3f(vertex[smodel[i].v[j][k] - 1][0], vertex[smodel[i].v[j][k] - 1][1], vertex[smodel[i].v[j][k] - 1][2]);//V[j][k]表示第j个三角形的第k个顶点
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TextureImage[index]->sizeX,
+					TextureImage[index]->sizeY, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE,
+					TextureImage[index]->data);
+			}
+			else
+			{
+				glTexImage2D(GL_TEXTURE_2D, 0, 3, TextureImage[index]->sizeX,
+					TextureImage[index]->sizeY, 0, GL_BGR_EXT, GL_UNSIGNED_BYTE,
+					TextureImage[index]->data);
+
 			}
 
 		}
 
-	}
+		// 3.画出三角形
+		
 
-	glEnd();
+		for (int j = 0; j < smodel[i].triangle_count; j++)
+		{
+			glBegin(GL_TRIANGLES);
+			for (int k = 0; k < 3; k++)
+			{
+				
+				glTexCoord2f(texture_pos[smodel[i].t[j][k]-1][0], texture_pos[smodel[i].t[j][k]-1][1]);
+				//glTexCoord2f(0.0, 1.0);
+				glVertex3f(vertex[smodel[i].v[j][k] - 1][0], vertex[smodel[i].v[j][k] - 1][1], vertex[smodel[i].v[j][k] - 1][2]);//V[j][k]表示第j个三角形的第k个顶点
+				
+			}
+			glEnd();
+		}
+
+	}
+	//glDrawPixels(imagewidth, imageheight, GL_BGR_EXT, GL_UNSIGNED_BYTE, pixeldata);
+
+	
 	glFlush();
+	glutSwapBuffers();
 	return ;										// Everything Went OK
 }
 
@@ -367,12 +535,13 @@ void onMouseMove(GLint x, GLint y)
 	}
 	else if (buttonstate==GLUT_LEFT_BUTTON)
 	{
-		camera->roll((GLfloat)dx/10);
+		
+		camera->slide(-(GLfloat)dx / 300, (GLfloat)dy / 300, 0);
 
 	}
 	else if (buttonstate == GLUT_MIDDLE_BUTTON)
 	{
-		camera->slide(-(GLfloat)dx/300, (GLfloat)dy/300, 0);
+		camera->slide(0, 0, -(GLfloat)dy/20);
 	}
 
 	else if (buttonstate == 4)
@@ -394,15 +563,16 @@ int main(int argc,char** argv)
 	cout << "请输入模型文件名" << endl;
 	cin >> filename;
 	inportModel(filename);
-
+	
 	glutInit(&argc, argv);
 
-	InitGL();
-
-	glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB | GLUT_DEPTH);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
 	glutInitWindowPosition(50, 50);
 	glutInitWindowSize(800, 600);
 	glutCreateWindow("test!");
+	InitGL();
+	
+	
 	glutDisplayFunc(DrawGLScene);
 	glutReshapeFunc(ReSizeGLScene);
 	
