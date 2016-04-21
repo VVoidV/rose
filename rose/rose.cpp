@@ -10,7 +10,7 @@
 #include "glcamera.h"
 #include <windows.h>
 #include "bmp.h"
-//#define DEBUG
+#define DEBUG
 using namespace std;
 //用于保存模型信息的数据结构
 char** texture;
@@ -371,7 +371,7 @@ GLvoid ReSizeGLScene(GLsizei width, GLsizei height)		// Resize And Initialize Th
 
 	glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
 	glLoadIdentity();									// Reset The Projection Matrix
-	camera->setShape(45.0, (GLfloat)width / (GLfloat)height, 0.1, 100.0);
+	camera->setShape(45.0, (GLfloat)width / (GLfloat)height, 0.1, 500.0);
 														// Calculate The Aspect Ratio Of The Window
 	//gluPerspective(45.0f, (GLfloat)width / (GLfloat)height, 0.1f, 100.0f);
 
@@ -388,11 +388,30 @@ int InitGL(GLvoid)										// All Setup For OpenGL Goes Here
 	glDepthFunc(GL_LEQUAL);								// The Type Of Depth Testing To Do
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
 	glEnable(GL_TEXTURE_2D);
-	Vector3d pos(0.0, 0.0, 3.0);
+	Vector3d pos(0.0, 0.0, 75.0);
 	Vector3d target(0.0, 0.0, 0.0);
 	Vector3d up(0.0, 1.0, 0.0);
 	camera = new GLCamera(pos, target, up);
 	LoadGLTextures(texture, texture_count);// 载入所有的纹理贴图  2013年12月12日13:47:22
+
+
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
+
+	float fAmbientColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	glLightfv(GL_LIGHT0, GL_AMBIENT, fAmbientColor);
+
+	float fDiffuseColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, fDiffuseColor);
+
+	float fSpecularColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	glLightfv(GL_LIGHT0, GL_SPECULAR, fSpecularColor);
+
+	float fPosition[] = { 1.0f, 1.0f, 1.0f, 0.0f };
+	glLightfv(GL_LIGHT0, GL_POSITION, fPosition);
+
+	GLfloat ambient_lightModel[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient_lightModel);
 	DrawGLScene();
 	
 	return TRUE;										// Initialization Went OK
@@ -400,6 +419,7 @@ int InitGL(GLvoid)										// All Setup For OpenGL Goes Here
 
 void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 {
+	//ofstream out("points.txt");
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	// Clear Screen And Depth Buffer
 	glLoadIdentity();									// Reset The Current Modelview Matrix
 	
@@ -411,15 +431,25 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 	//glColor3f(0.0, 0.0, 0.0);
 	for (int i = 0; i < submodel_count; i++)
 	{
+		
+		int submodleNum;
+		if (smodel[i].material_index>0)
+		{
+			submodleNum = smodel[i].material_index - 1;
 
+		}
+		else
+		{
+			submodleNum = 0;
+		}
 		// 1.打开材质
 		if (1)
 		{
-			glMaterialfv(GL_FRONT, GL_AMBIENT, &ambient[i][0]);
-			glMaterialfv(GL_FRONT, GL_DIFFUSE, &diffuse[i][0]);
-			glMaterialfv(GL_FRONT, GL_SPECULAR, &specular[i][0]);
-			glMaterialfv(GL_FRONT, GL_EMISSION, &emission[i][0]);
-			glMaterialf(GL_FRONT, GL_SHININESS, shininess[i]);
+			glMaterialfv(GL_FRONT, GL_AMBIENT, &ambient[submodleNum][0]);
+			glMaterialfv(GL_FRONT, GL_DIFFUSE, &diffuse[submodleNum][0]);
+			glMaterialfv(GL_FRONT, GL_SPECULAR, &specular[submodleNum][0]);
+			glMaterialfv(GL_FRONT, GL_EMISSION, &emission[submodleNum][0]);
+			glMaterialf(GL_FRONT, GL_SHININESS, shininess[submodleNum]);
 		}
 
 
@@ -431,7 +461,7 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); // 线形滤波
 			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);     // 2013年12月13日10:52:55
 
-			int index = texture_index[i] - 1;
+			int index = texture_index[submodleNum] - 1;
 			glBindTexture(GL_TEXTURE_2D, textureid[index]);
 
 			if (0x0020 == TextureImage[index]->biBitCount)
@@ -452,7 +482,7 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 
 		// 3.画出三角形
 		
-
+		
 		for (int j = 0; j < smodel[i].triangle_count; j++)
 		{
 			glBegin(GL_TRIANGLES);
@@ -462,9 +492,10 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 				glTexCoord2f(texture_pos[smodel[i].t[j][k]-1][0], texture_pos[smodel[i].t[j][k]-1][1]);
 				//glTexCoord2f(0.0, 1.0);
 				glVertex3f(vertex[smodel[i].v[j][k] - 1][0], vertex[smodel[i].v[j][k] - 1][1], vertex[smodel[i].v[j][k] - 1][2]);//V[j][k]表示第j个三角形的第k个顶点
-				
+				//out<< vertex[smodel[i].v[j][k] - 1][0] << " " << vertex[smodel[i].v[j][k] - 1][1] << " " << vertex[smodel[i].v[j][k] - 1][2] << endl;
 			}
 			glEnd();
+			//cout << i  << ' ' << j << endl;
 		}
 
 	}
@@ -473,6 +504,7 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 	
 	glFlush();
 	glutSwapBuffers();
+	//out.close();
 	return ;										// Everything Went OK
 }
 
@@ -536,7 +568,7 @@ void onMouseMove(GLint x, GLint y)
 	else if (buttonstate==GLUT_LEFT_BUTTON)
 	{
 		
-		camera->slide(-(GLfloat)dx / 300, (GLfloat)dy / 300, 0);
+		camera->slide(-(GLfloat)dx / 30, (GLfloat)dy / 30, 0);
 
 	}
 	else if (buttonstate == GLUT_MIDDLE_BUTTON)
