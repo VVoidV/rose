@@ -5,5 +5,5 @@
 #include <atlimage.h>
 #include <GL\glut.h>
 #include<windows.h>
-using namespace std;
+using namespace std;//////////////
 GLuint ATLLoadTexture(const char* fileName);
