@@ -8,8 +8,8 @@
 #include <vector>
 #include <GL\glut.h>
 #include "glcamera.h"
-#include <windows.h>
-#include "bmp.h"
+
+
 #define DEBUG
 using namespace std;
 //用于保存模型信息的数据结构
@@ -37,8 +37,14 @@ static GLint imagewidth;
 static GLint imageheight;
 static GLint pixellength;
 static GLubyte* pixeldata;
-
-
+//////////////////////////////////////////////////////////////////////////
+//渲染设置
+static GLenum mode = GL_TRIANGLES;
+static GLboolean lightFlag = true;
+static GLboolean materialFlag = true;
+static GLboolean xyzFlag = true;
+static GLboolean textureFlag = true;
+//////////////////////////////////////////////////////////////////////////
 struct AUX_RGBImageRec {
 	GLuint sizeX;
 	GLuint sizeY;
@@ -388,7 +394,7 @@ int InitGL(GLvoid)										// All Setup For OpenGL Goes Here
 	glDepthFunc(GL_LEQUAL);								// The Type Of Depth Testing To Do
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);	// Really Nice Perspective Calculations
 	glEnable(GL_TEXTURE_2D);
-	Vector3d pos(0.0, 0.0, 75.0);
+	Vector3d pos(0.0/zoom_factor[0], -250.0/ zoom_factor[1],100.0/zoom_factor[2] );
 	Vector3d target(0.0, 0.0, 0.0);
 	Vector3d up(0.0, 1.0, 0.0);
 	camera = new GLCamera(pos, target, up);
@@ -414,16 +420,33 @@ int InitGL(GLvoid)										// All Setup For OpenGL Goes Here
 	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient_lightModel);
 	DrawGLScene();
 	
-	return TRUE;										// Initialization Went OK
+	return true;										// Initialization Went OK
 }
 
 void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 {
-	//ofstream out("points.txt");
+	
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	// Clear Screen And Depth Buffer
 	glLoadIdentity();									// Reset The Current Modelview Matrix
 	
+
 	camera->setModelViewMatrix();
+
+	if (xyzFlag)
+	{
+		glBegin(GL_LINES);
+		glColor3f(100.0, 0.0, 0.0);
+		glVertex3f(-500, 0, 0);                                    
+		glVertex3f(500, 0, 0);
+		glColor3f(0.0, 100.0, 0.0);
+		glVertex3f(0, -500, 0);
+		glVertex3f(0, 500, 0);
+		glColor3f(0.0, 0.0, 100.0);
+		glVertex3f(0, 0, -500);
+		glVertex3f(0, 0, 500);
+		glEnd();
+
+	}
 	//绘制模型
 	glColor3f(0.0, 1.0, 0.0);
 	//glutWireTeapot(1);
@@ -443,7 +466,7 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 			submodleNum = 0;
 		}
 		// 1.打开材质
-		if (1)
+		if (materialFlag)
 		{
 			glMaterialfv(GL_FRONT, GL_AMBIENT, &ambient[submodleNum][0]);
 			glMaterialfv(GL_FRONT, GL_DIFFUSE, &diffuse[submodleNum][0]);
@@ -454,7 +477,7 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 
 
 		// 2.打开纹理
-		if (1)
+		if (textureFlag)
 		{
 			
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); // 线形滤波
@@ -485,26 +508,25 @@ void DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 		
 		for (int j = 0; j < smodel[i].triangle_count; j++)
 		{
-			glBegin(GL_TRIANGLES);
+			glBegin(mode);
 			for (int k = 0; k < 3; k++)
 			{
 				
 				glTexCoord2f(texture_pos[smodel[i].t[j][k]-1][0], texture_pos[smodel[i].t[j][k]-1][1]);
-				//glTexCoord2f(0.0, 1.0);
+				glNormal3f(normals[smodel[i].n[j][k] - 1][0], normals[smodel[i].n[j][k] - 1][1], normals[smodel[i].n[j][k] - 1][2]);
 				glVertex3f(vertex[smodel[i].v[j][k] - 1][0], vertex[smodel[i].v[j][k] - 1][1], vertex[smodel[i].v[j][k] - 1][2]);//V[j][k]表示第j个三角形的第k个顶点
 				//out<< vertex[smodel[i].v[j][k] - 1][0] << " " << vertex[smodel[i].v[j][k] - 1][1] << " " << vertex[smodel[i].v[j][k] - 1][2] << endl;
 			}
 			glEnd();
-			//cout << i  << ' ' << j << endl;
+			
 		}
 
 	}
-	//glDrawPixels(imagewidth, imageheight, GL_BGR_EXT, GL_UNSIGNED_BYTE, pixeldata);
+	
 
 	
 	glFlush();
 	glutSwapBuffers();
-	//out.close();
 	return ;										// Everything Went OK
 }
 
@@ -553,6 +575,17 @@ void mouse(GLint button, GLint state, GLint x, GLint y)
 		oldmy = y;
 	}
 	buttonstate = button;
+	if (button== GLUT_WHEEL_UP)
+	{
+		camera->slide(0, 0, -10.0 / zoom_factor[0]);
+	}
+	else if (button==GLUT_WHEEL_DOWN)
+	{
+		camera->slide(0, 0, 10.0 / zoom_factor[0]);
+
+	}
+	//cout << button <<endl<< state << endl;
+	glutPostRedisplay();
 }
 
 void onMouseMove(GLint x, GLint y)
@@ -560,26 +593,22 @@ void onMouseMove(GLint x, GLint y)
 
 	GLint dx = x - oldmx;
 	GLint dy = y-oldmy;
-	if (buttonstate == GLUT_RIGHT_BUTTON)
+	if (buttonstate == GLUT_LEFT_BUTTON)
 	{
-		RotateX((GLfloat)dx/10);
-		RotateY((GLfloat)dy/10);
+		RotateX((GLfloat)dx/  10);
+		RotateY((GLfloat)dy/  10);
 	}
-	else if (buttonstate==GLUT_LEFT_BUTTON)
+	else if (buttonstate== GLUT_MIDDLE_BUTTON)
 	{
 		
-		camera->slide(-(GLfloat)dx / 30, (GLfloat)dy / 30, 0);
+		camera->slide(-(GLfloat)dx /(zoom_factor[0]*10), (GLfloat)dy / (zoom_factor[0]*10), 0);
 
 	}
-	else if (buttonstate == GLUT_MIDDLE_BUTTON)
+	/*else if (buttonstate == GLUT_MIDDLE_BUTTON)
 	{
-		camera->slide(0, 0, -(GLfloat)dy/20);
-	}
+		camera->roll((GLfloat)dy / 10);
+	}*/
 
-	else if (buttonstate == 4)
-	{
-		cout << "!!" << endl;
-	}
 	oldmx = x;
 	oldmy = y;
 
@@ -587,6 +616,73 @@ void onMouseMove(GLint x, GLint y)
 	glutPostRedisplay();
 
 }
+
+GLint main_menu;
+GLint xyz_menu;
+GLint mode_menu;
+
+
+
+void modeMenu(GLint menu)
+{
+	switch (menu)
+	{
+	case 1:mode = GL_POINTS;
+		break;
+	case 2:
+		mode = GL_TRIANGLES;
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		break;
+	case 3:
+		mode = GL_TRIANGLES;
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		break;
+
+	default:
+		break;
+		
+	}
+	glutPostRedisplay();
+}
+
+void xyz(GLint menu)
+{
+	switch (menu)
+	{
+	case 1://开启
+		xyzFlag = true;
+	case 2://关闭
+		xyzFlag = false;
+	default:
+		break;
+	}
+	glutPostRedisplay();
+}
+
+void ProcessMenu(GLint menu)
+{
+	switch (menu)
+	{
+	case 1://光照开
+		lightFlag = true;
+		break;
+	case 2://光照关
+		lightFlag = false;
+		break;
+	case 3://材质开
+		materialFlag = true;
+		break;
+	case 4://材质关
+		materialFlag = false;
+		break;
+	default:
+		break;
+
+		
+	}
+	glutPostRedisplay();
+}
+
 
 
 int main(int argc,char** argv)
@@ -604,9 +700,30 @@ int main(int argc,char** argv)
 	glutCreateWindow("test!");
 	InitGL();
 	
-	
 	glutDisplayFunc(DrawGLScene);
 	glutReshapeFunc(ReSizeGLScene);
+	mode_menu=glutCreateMenu(modeMenu);
+	glutAddMenuEntry("点模式", 1);
+	glutAddMenuEntry("线模式", 2);
+	glutAddMenuEntry("填充模式", 3);
+	glutAttachMenu(GLUT_RIGHT_BUTTON);
+
+	xyz_menu = glutCreateMenu(xyz);
+	glutAddMenuEntry("关闭", 2);
+	glutAddMenuEntry("开启", 1);
+	glutAttachMenu(GLUT_RIGHT_BUTTON);
+
+	main_menu=glutCreateMenu(ProcessMenu);
+	glutAddMenuEntry("光照开", 1);
+	glutAddMenuEntry("光照关", 2);
+	glutAddMenuEntry("材质开", 3);
+	glutAddMenuEntry("材质关", 4);
+	glutAddSubMenu("渲染模式", mode_menu);
+	glutAddSubMenu("坐标轴", xyz_menu);
+	glutAttachMenu(GLUT_RIGHT_BUTTON);
+
+	
+	
 	
 	glutMouseFunc(mouse);
 	glutMotionFunc(onMouseMove);
